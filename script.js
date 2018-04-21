@@ -1,83 +1,103 @@
-// origin and destination need to change when the user puts in addresses/destinations
-// this is the current location
-let originInput = document.getElementById('originInput')
-let userLocation = originInput.value
+let APIkey = 'pk.eyJ1IjoiYWxpY2lhc2Vjb3JkIiwiYSI6ImNqOTY4ZG5kdjAxcXkzM282NG4wbmZibGQifQ.8pihI3EzBLwngeG2k6T26g'
 
-//for now, this is the destination
-let destinationInput = document.getElementById('destinationInput')
-let userDestination = 'Chicago';
+mapboxgl.accessToken = APIkey
 
-// let's have a button that triggers the routing
-let goButton = document.getElementById('goButton');
+var map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/light-v9',
+  center: [-96, 37.8],
+  zoom: 4
+});
 
-// do something when the text input is updated
-goButton.addEventListener('click', printme);
+// set up geojson object
+let geojson = {
+	type: 'FeatureCollection',
+  features: []
+}
 
-function printme(){console.log(originInput.value)}
+let i = 0;
+let limit = 400;
+let offset = (limit * i)
 
-// placeholder for origin coordinates
-let origin = ""
-
-// placeholder for destination coordinates
-let destination = ""
-
-// my mapbox API key
-let APIkey = 'pk.eyJ1IjoiYWxpY2lhc2Vjb3JkIiwiYSI6ImNqOTY4ZG5kdjAxcXkzM282NG4wbmZibGQifQ.8pihI3EzBLwngeG2k6T26g';
-
-// create the url to get the origin coordinates
-if (originInput)
-  {let originURL = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + originInput.value + '.json?access_token=' + APIkey;}
-
-// create the url to get the destination coordinates
-let destinationURL = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + userDestination + '.json?access_token=' + APIkey;
-
-// don't run until the userLocation and userDestination are set
-function mapboxQueries (){
-  // fetch origin location data
-  fetch(originURL)
-    .then(response => {return response.json()})
-    .then(data => {getOriginLocation(data)})
-    .then;
-
-  // function returns origin as lat, lang
-  function getOriginLocation(data) {
-    let originLat = data.features[0].center[0];
-    let originLong = data.features[0].center[1];
-    let origin = (originLat + '%2C' + originLong);
-
-    // inside of origin function
-    // fetch destination location data
-    fetch(destinationURL)
-    .then(response => {return response.json()})
-    .then(data => {getDestinationLocation(data)})
-    .then;
-
-    // function returns destination as lat, lang
-    function getDestinationLocation(data) {
-      let destinationLat = data.features[0].center[0];
-      let destinationLong = data.features[0].center[1];
-      let destination = (destinationLat + '%2C' + destinationLong);
-
-      // inside of destination function
-      // create the url for directions from origin and destination coordinates
-      let directionsURL = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + origin + '%3B' + destination + '.json?access_token=' + APIkey;
-
-      // fetch the directions from origin to destination
-      fetch(directionsURL)
-        .then(response => {return response.json()})
-        .then(data => getDuration(data));
-
-      // function returns the duration of the trip in minutes or hours and minutes
-      function getDuration(data){
-      let duration = data.routes[0].legs[0].duration;
-      let hours = Math.floor(duration/3600)
-      let min = Math.round((duration/3600 - hours)*60);
-      if (!hours)
-        {console.log(min + " minutes")}
-      else
-        {console.log(hours  + " hours and " + min + " minutes")}
-      }
-    }
+// Medicare options include GET request and headers including APP token
+let medicareDataOptions = {
+  method: 'GET',
+  headers: {
+    // this is our APP token
+    'X-App-Token': 'rqCqfMJxp9wRbLXkPISaVzZF2',
+    'Host': 'data.medicare.gov',
+    'Accept': 'application/json'
   }
+};
 
+// dataset of US hospitals
+for (i=0; i < 13; i++)
+  {
+  hospitalsURL = 'https://data.medicare.gov/resource/3z8n-wcgr.json?$limit=' + limit + '&$offset=' + offset + '&measure_id=OP_20'
+
+// fetch hospital data
+fetch(hospitalsURL, medicareDataOptions)
+  .then(response => {return response.json()})
+  .then (data => {hospitalLocations (data)})
+  // after everything is compiled, add markers
+}
+
+function hospitalLocations (data){
+	for (hospital in data){
+	  hospitalLocation = String(data[hospital].location_address + ', ' + data[hospital].location_city + ', ' + data[hospital].location_state);
+		hospitalName = String(data[hospital].hospital_name);
+    hospitalWait = String(data[hospital].score);
+
+	// create the url to get the destination coordinates for each hospital
+	let destinationURL = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + hospitalLocation + '.json?access_token=' + APIkey;
+
+  // fetch the mapbox data to get the coordinates of each address
+	fetch (destinationURL)
+		.then(response => {return response.json()})
+		.then(data => {getAddress(data)});
+	}
+}
+
+// parse the coordinates for each address
+function getAddress(data){
+	let destinationLat = data.features[0].center[0];
+	let destinationLong = data.features[0].center[1];
+	let destination = [destinationLat, destinationLong];
+
+  // push the coordinates for each hospital to the geojson object
+	geojson.features.push(
+         {
+           type: 'Feature',
+           geometry: {
+             type: 'Point',
+             coordinates: destination
+           },
+           properties: {
+             title: hospitalName,
+             description: hospitalLocation,
+             wait: 'Wait: ' + hospitalWait + ' minutes'
+           }
+         }
+       )
+  if (geojson.features.length == 4806){
+    addMarkers()
+  }
+}
+
+function addMarkers(){
+  console.log(geojson.features.length)
+  // add markers to map
+  geojson.features.forEach(function(marker) {
+
+    // create a HTML element for each feature
+    var el = document.createElement('div');
+    el.className = 'marker';
+
+    // make a marker for each feature and add to the map
+    new mapboxgl.Marker(el)
+    .setLngLat(marker.geometry.coordinates)
+    .setPopup(new mapboxgl.Popup({ offset: 25 }) // add popups
+    .setHTML('<h3>' + marker.properties.title + '</h3><p>' + marker.properties.description + '</p><p>' + marker.properties.wait + '</p>'))
+    .addTo(map);
+  });
 }
