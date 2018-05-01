@@ -1,103 +1,129 @@
-let APIkey = 'pk.eyJ1IjoiYWxpY2lhc2Vjb3JkIiwiYSI6ImNqOTY4ZG5kdjAxcXkzM282NG4wbmZibGQifQ.8pihI3EzBLwngeG2k6T26g'
+let APIkey = 'pk.eyJ1IjoiYWxpY2lhc2Vjb3JkIiwiYSI6ImNqZ2Q0cW5oeDNybjgyd241cTR1eGMyenYifQ.IyZgMzeCKNb6tyglxHWU8w';
 
-mapboxgl.accessToken = APIkey
-
+mapboxgl.accessToken = APIkey;
+// This adds the map to your page
 var map = new mapboxgl.Map({
+  // container id specified in the HTML
   container: 'map',
+  // style URL
   style: 'mapbox://styles/mapbox/light-v9',
-  center: [-96, 37.8],
-  zoom: 4
+  // initial position in [lon, lat] format
+  center: [-83, 42],
+  // initial zoom
+  zoom: 6
 });
 
-// set up geojson object
-let geojson = {
-	type: 'FeatureCollection',
-  features: []
-}
+let ERurl = 'https://data.medicare.gov/resource/3z8n-wcgr.geojson?$limit=5000&measure_id=OP_20';
 
-let i = 0;
-let limit = 400;
-let offset = (limit * i)
-
-// Medicare options include GET request and headers including APP token
-let medicareDataOptions = {
-  method: 'GET',
-  headers: {
-    // this is our APP token
-    'X-App-Token': 'rqCqfMJxp9wRbLXkPISaVzZF2',
-    'Host': 'data.medicare.gov',
-    'Accept': 'application/json'
-  }
-};
-
-// dataset of US hospitals
-for (i=0; i < 13; i++)
-  {
-  hospitalsURL = 'https://data.medicare.gov/resource/3z8n-wcgr.json?$limit=' + limit + '&$offset=' + offset + '&measure_id=OP_20'
-
-// fetch hospital data
-fetch(hospitalsURL, medicareDataOptions)
-  .then(response => {return response.json()})
-  .then (data => {hospitalLocations (data)})
-  // after everything is compiled, add markers
-}
-
-function hospitalLocations (data){
-	for (hospital in data){
-	  hospitalLocation = String(data[hospital].location_address + ', ' + data[hospital].location_city + ', ' + data[hospital].location_state);
-		hospitalName = String(data[hospital].hospital_name);
-    hospitalWait = String(data[hospital].score);
-
-	// create the url to get the destination coordinates for each hospital
-	let destinationURL = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + hospitalLocation + '.json?access_token=' + APIkey;
-
-  // fetch the mapbox data to get the coordinates of each address
-	fetch (destinationURL)
-		.then(response => {return response.json()})
-		.then(data => {getAddress(data)});
-	}
-}
-
-// parse the coordinates for each address
-function getAddress(data){
-	let destinationLat = data.features[0].center[0];
-	let destinationLong = data.features[0].center[1];
-	let destination = [destinationLat, destinationLong];
-
-  // push the coordinates for each hospital to the geojson object
-	geojson.features.push(
-         {
-           type: 'Feature',
-           geometry: {
-             type: 'Point',
-             coordinates: destination
-           },
-           properties: {
-             title: hospitalName,
-             description: hospitalLocation,
-             wait: 'Wait: ' + hospitalWait + ' minutes'
-           }
-         }
-       )
-  if (geojson.features.length == 4806){
-    addMarkers()
-  }
-}
-
-function addMarkers(){
-  console.log(geojson.features.length)
-  // add markers to map
-  geojson.features.forEach(function(marker) {
-
-    // create a HTML element for each feature
-    var el = document.createElement('div');
-    el.className = 'marker';
-
-    // make a marker for each feature and add to the map
-    new mapboxgl.Marker(el)
-    .setLngLat(marker.geometry.coordinates)
-    .setPopup(new mapboxgl.Popup({ offset: 25 }) // add popups
-    .setHTML('<h3>' + marker.properties.title + '</h3><p>' + marker.properties.description + '</p><p>' + marker.properties.wait + '</p>'))
-    .addTo(map);
+map.on('load', function(e) {
+  // Add the data to your map as a layer
+  map.addLayer({
+    id: 'locations',
+    type: 'symbol',
+    // Add hospitals GeoJSON source.
+    source: {
+      type: 'geojson',
+      data: ERurl
+    },
+    layout: {
+      'icon-image': 'hospital-15',
+      'icon-allow-overlap': true
+    }
   });
+
+  fetch(ERurl)
+    .then(response => {return response.json()})
+    .then(data => buildLocationList(data))
+});
+
+function buildLocationList(data) {
+  // Iterate through the list of hospitals
+  for (let i = 0; i < data.features.length; i++) {
+    var currentFeature = data.features[i];
+    // Shorten data.feature[i].properties to just `prop` so we're not
+    // writing this long form over and over again.
+    var prop = currentFeature.properties;
+    // Select the listing container in the HTML and append a div
+    // with the class 'item' for each hospital
+    var listings = document.getElementById('listings');
+    var listing = listings.appendChild(document.createElement('div'));
+    listing.className = 'item';
+    listing.id = 'listing-' + i;
+
+    // Create a new link with the class 'title' for each hospital
+    // and fill it with the hospital name
+    var link = listing.appendChild(document.createElement('a'));
+    link.href = '#';
+    link.className = 'title';
+    link.dataPosition = i;
+    link.innerHTML = prop.hospital_name;
+
+    // Create a new div with the class 'details' for each store
+    // and fill it with the city and phone number
+    var details = listing.appendChild(document.createElement('div'));
+    details.innerHTML = prop.location_address + ', ' + prop.location_city + ', ' + prop.location_state + ' ' + prop.zip_code + '<br>' + prop.phone_number + '<br> Average wait time: ' + prop.score + ' minutes';
+  }
 }
+
+// function flyToStore(currentFeature) {
+//   map.flyTo({
+//     center: currentFeature.geometry.coordinates,
+//     zoom: 15
+//   });
+// }
+
+// function createPopUp(currentFeature) {
+//   var popUps = document.getElementsByClassName('mapboxgl-popup');
+//   // Check if there is already a popup on the map and if so, remove it
+//   if (popUps[0]) popUps[0].remove();
+
+//   var popup = new mapboxgl.Popup({ closeOnClick: false })
+//     .setLngLat(currentFeature.geometry.coordinates)
+//     .setHTML('<h3>' + currentFeature.properties.hospital_name + '</h3>' +
+//       '<h4>' + currentFeature.properties.location_address + '</h4>')
+//     .addTo(map);
+// }
+
+// // Add an event listener for the links in the sidebar listing
+// link.addEventListener('click', function(e) {
+//   // Update the currentFeature to the store associated with the clicked link
+//   var clickedListing = data.features[this.dataPosition];
+//   // 1. Fly to the point associated with the clicked link
+//   flyToStore(clickedListing);
+//   // 2. Close all other popups and display popup for clicked store
+//   createPopUp(clickedListing);
+//   // 3. Highlight listing in sidebar (and remove highlight for all other listings)
+//   var activeItem = document.getElementsByClassName('active');
+//   if (activeItem[0]) {
+//     activeItem[0].classList.remove('active');
+//   }
+//   this.parentNode.classList.add('active');
+// });
+
+// map.on('click', function(e) {
+//   // Query all the rendered points in the view
+//   var features = map.queryRenderedFeatures(e.point, { layers: ['locations'] });
+//   if (features.length) {
+//     var clickedPoint = features[0];
+//     // 1. Fly to the point
+//     flyToStore(clickedPoint);
+//     // 2. Close all other popups and display popup for clicked hospital
+//     createPopUp(clickedPoint);
+//     // 3. Highlight listing in sidebar (and remove highlight for all other listings)
+//     var activeItem = document.getElementsByClassName('active');
+//     if (activeItem[0]) {
+//       activeItem[0].classList.remove('active');
+//     }
+//     // Find the index of the data.features that corresponds to the clickedPoint that fired the event listener
+//     var selectedFeature = clickedPoint.properties.location_address;
+
+//     for (var i = 0; i < data.features.length; i++) {
+//       if (data.features[i].properties.location_address === selectedFeature) {
+//         selectedFeatureIndex = i;
+//       }
+//     }
+//     // Select the correct list item using the found index and add the active class
+//     var listing = document.getElementById('listing-' + selectedFeatureIndex);
+//     listing.classList.add('active');
+//   }
+// });
