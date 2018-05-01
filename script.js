@@ -2,7 +2,7 @@ let APIkey = 'pk.eyJ1IjoiYWxpY2lhc2Vjb3JkIiwiYSI6ImNqZ2Q0cW5oeDNybjgyd241cTR1eGM
 
 mapboxgl.accessToken = APIkey;
 // This adds the map to your page
-var map = new mapboxgl.Map({
+let map = new mapboxgl.Map({
   // container id specified in the HTML
   container: 'map',
   // style URL
@@ -33,26 +33,28 @@ map.on('load', function(e) {
 
   fetch(ERurl)
     .then(response => {return response.json()})
-    .then(data => buildLocationList(data))
+    .then(data => {buildLocationList(data)})
 });
 
 function buildLocationList(data) {
+  let heading = document.getElementById('heading');
+  heading.innerHTML = '<h1>Emergency Room Locations</h1>';
   // Iterate through the list of hospitals
   for (let i = 0; i < data.features.length; i++) {
-    var currentFeature = data.features[i];
+    let currentFeature = data.features[i];
     // Shorten data.feature[i].properties to just `prop` so we're not
     // writing this long form over and over again.
-    var prop = currentFeature.properties;
+    let prop = currentFeature.properties;
     // Select the listing container in the HTML and append a div
     // with the class 'item' for each hospital
-    var listings = document.getElementById('listings');
-    var listing = listings.appendChild(document.createElement('div'));
+    let listings = document.getElementById('listings');
+    let listing = listings.appendChild(document.createElement('div'));
     listing.className = 'item';
     listing.id = 'listing-' + i;
 
     // Create a new link with the class 'title' for each hospital
     // and fill it with the hospital name
-    var link = listing.appendChild(document.createElement('a'));
+    let link = listing.appendChild(document.createElement('a'));
     link.href = '#';
     link.className = 'title';
     link.dataPosition = i;
@@ -60,7 +62,7 @@ function buildLocationList(data) {
 
     // Create a new div with the class 'details' for each store
     // and fill it with the city and phone number
-    var details = listing.appendChild(document.createElement('div'));
+    let details = listing.appendChild(document.createElement('div'));
     details.innerHTML = prop.location_address + ', ' + prop.location_city + ', ' + prop.location_state + ' ' + prop.zip_code + '<br>' + prop.phone_number + '<br> Average wait time: ' + prop.score + ' minutes';
   }
 }
